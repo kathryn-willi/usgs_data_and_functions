@@ -11,6 +11,8 @@ library(dataRetrieval)
 library(dygraphs) #Time series plotting
 library(tidyr) 
 library(xts) #Time series objects
+library(ggthemes)
+library(ggplot2)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -48,6 +50,7 @@ summary(combo_data)
 
 
 ```{r}
+
 
 q_downloader <- function(site_no = '06752260',
                          site_id = 'lincoln'){
@@ -154,6 +157,22 @@ plot). Please plot the `combo_data` dataset here.
 
 ```{r}
 
+ggplot_maker <- function(plot_data=combo_data){
+  
+  df <- ggplot(plot_data, aes(x=Date, y=q_cfs, color= site))+
+    xlab("Date") + ylab("Discharge (cfs)")+
+    geom_line()+
+    theme(legend.title = element_blank())+
+    scale_color_few() +
+    theme_few() 
+  
+  return(df)
+}
+
+plot1<-ggplot_maker(plot_data=combo_data)
+
+plot1
+
 ```
 
 
@@ -167,10 +186,29 @@ Hint: hardcoding `q_cfs = X_00060_00003` could be dangerous
 
 ```{r}
 
+q_downloader <- function(site_no = '06752260',
+                         site_id = 'lincoln'){
+  df <- readNWISdv(site_no, 
+                   parameterCd = '00060',
+                   startDate = '1950-10-01',
+                   endDate = '2019-10-01') %>%
+  rename(q_cfs = X_00060_00003,
+         q_cd = X_00060_00003_cd) %>%
+    mutate(site = site_id)
+  return(df)
+}
+
+
+metolius_q <- q_downloader(site_no = '14091500',
+                          site_id = 'Metolius')
+shenandoah_q <- q_downloader(site_no = '01636500',
+                      site_id = 'Shenandoah River')
+
 ```
 
+*Hardcoding `q_cfs = X_00060_00003` makes the code brittle because there may be a chance that the data from another USGS gage will have a different column name than X_00060_00003 (?).*
 
-## Joining your two datasets
+## Joining your two datasets :: NOT NECESSARY TO COMPLETE
 
 Above, I combined datasets by stacking them on top of each other 
 (bind_rows), but then we had to `spread` the data anyways because
@@ -181,6 +219,20 @@ Hint: be careful of having two `site` columns.
 
 ```{r}
 
+q_binder <- function(site_1 = metolius_q,
+                     name1 = "Metolius",
+                     site_2 = shenandoah_q,
+                     name2 = "Shenandoah") {
+  df <- dplyr::full_join(site_1, site_2, by = c("Date"="Date"))%>%
+    rename(name1=site_no.x, name2=site_no.y)
+  return(df)
+}
+
+combo_data2 <- q_binder(site_1 = metolius_q,
+                     name1 = "Metolius",
+                     site_2 = shenandoah_q,
+                     name2 = "Shenandoah")
+view(combo_data2)
 ```
 
 
@@ -192,6 +244,19 @@ a dygraph. Here, I want you to make a similar function that preps *and* plots a 
 
 ```{r}
 
+xts_maker <- function(df){
+  combo_data2 <- df %>%
+    select(Date, q_cfs.x, q_cfs.y)
+
+  xts_combo <- xts(combo_data2 %>%
+                  select(-Date),
+                order.by = combo_data2$Date)
+  
+  return(dygraph(xts_combo))
+  
+}
+
+xts_maker(combo_data2)
 ```
 
 
